@@ -32,10 +32,28 @@ def _should_skip(name: str) -> bool:
     return _is_hidden(name) or name in SKIP_DIRS
 
 
-def copy_notes(src: Path, dst: Path) -> None:
-    """Recursively copy *src* → *dst*, skipping excluded entries."""
+def _find_ci(directory: Path, target: str) -> Path | None:
+    """Find a file in *directory* whose name matches *target* case-insensitively.
+
+    Returns the first match (sorted for determinism) or ``None``.
+    """
+    low = target.lower()
+    for entry in sorted(directory.iterdir()):
+        if entry.is_file() and entry.name.lower() == low:
+            return entry
+    return None
+
+
+def copy_notes(src: Path, dst: Path, exclude: set[str] | None = None) -> None:
+    """Recursively copy *src* → *dst*, skipping excluded entries.
+
+    *exclude* is an optional set of **exact** filenames to skip (only
+    checked at the top level – sub-directories are copied normally).
+    """
     for entry in sorted(src.iterdir()):
         if _should_skip(entry.name):
+            continue
+        if exclude and entry.name in exclude:
             continue
         target = dst / entry.name
         if entry.is_dir():
@@ -75,20 +93,44 @@ def generate_code_pages(docs_dir: Path) -> None:
         md_path.write_text(content, encoding="utf-8")
 
 
-def ensure_index(docs_dir: Path) -> None:
-    """Make sure docs_dir has an index.md."""
-    index = docs_dir / "index.md"
-    if index.exists():
-        return
-    readme = docs_dir / "README.md"
-    if readme.exists():
-        shutil.copy2(readme, index)
-        return
+def ensure_index(notes_dir: Path, docs_dir: Path) -> set[str]:
+    """Make sure *docs_dir* has an ``index.md``.
+
+    Detection is case-insensitive:
+    1. If the *notes_dir* root already contains an ``index.md`` (any case),
+       it will be copied into docs normally – nothing extra to do here.
+    2. Otherwise, look for a ``readme.md`` (any case) in the *notes_dir*
+       root.  If found, write its contents to ``docs/index.md`` and return
+       its original filename so the caller can exclude it from the copy
+       (preventing a duplicate page).
+    3. If neither exists, generate a small placeholder index.
+
+    Returns a set of filenames to exclude from the top-level copy.
+    """
+    exclude: set[str] = set()
+
+    # Case-insensitive check for an existing index.md in the source root.
+    index_src = _find_ci(notes_dir, "index.md")
+    if index_src is not None:
+        # An index.md (any casing) exists – it will be copied by
+        # copy_notes; nothing else to do.
+        return exclude
+
+    # No index.md – look for a readme to promote.
+    readme_src = _find_ci(notes_dir, "readme.md")
+    if readme_src is not None:
+        content = readme_src.read_text(encoding="utf-8", errors="replace")
+        (docs_dir / "index.md").write_text(content, encoding="utf-8")
+        exclude.add(readme_src.name)
+        return exclude
+
+    # Fallback – generate a small placeholder.
     site_name = os.environ.get("SITE_NAME", "My Notes")
-    index.write_text(
+    (docs_dir / "index.md").write_text(
         f"# {site_name}\n\nWelcome to **{site_name}**.\n",
         encoding="utf-8",
     )
+    return exclude
 
 
 def main() -> None:
@@ -107,11 +149,11 @@ def main() -> None:
         shutil.rmtree(docs)
     docs.mkdir(parents=True)
 
-    # 2. Copy notes → docs (filtered)
-    copy_notes(notes, docs)
+    # 2. Ensure an index.md exists (may return files to exclude from copy)
+    exclude = ensure_index(notes, docs)
 
-    # 3. Ensure an index.md exists
-    ensure_index(docs)
+    # 3. Copy notes → docs (filtered)
+    copy_notes(notes, docs, exclude=exclude)
 
     # 4. Generate .md pages for source-code files
     generate_code_pages(docs)
