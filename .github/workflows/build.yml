@@ -1,0 +1,70 @@
+name: Build & Deploy Docs
+
+on:
+  workflow_call:
+    inputs:
+      site_name:
+        required: true
+        type: string
+      domain:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
+        with:
+          path: notes
+
+      - name: Checkout site-builder
+        uses: actions/checkout@v4
+        with:
+          repository: Roshann78/site-builder
+          path: builder
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: builder/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r builder/requirements.txt
+
+      - name: Prepare docs
+        run: python builder/tools/build_docs.py --notes notes --out build --domain ${{ inputs.domain }}
+
+      - name: Build site
+        working-directory: build
+        env:
+          SITE_NAME: ${{ inputs.site_name }}
+          SITE_URL: https://${{ inputs.domain }}
+        run: mkdocs build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
