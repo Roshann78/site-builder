@@ -162,3 +162,41 @@ class TestExistingTitle:
         inject_titles(docs_dir)
 
         assert md.read_text(encoding="utf-8") == original
+
+
+class TestSubfolderIndex:
+    """Non-root index.md derives title from parent folder name."""
+
+    def test_no_front_matter(self, docs_dir):
+        sub = docs_dir / "PlacementNotes"
+        sub.mkdir()
+        md = sub / "index.md"
+        md.write_text("# Welcome\n\nSome content.\n", encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        result = md.read_text(encoding="utf-8")
+        assert result.startswith("---\ntitle: PlacementNotes\n---\n")
+        assert "# Welcome" in result
+
+    def test_existing_title_untouched(self, docs_dir):
+        sub = docs_dir / "PlacementNotes"
+        sub.mkdir()
+        original = "---\ntitle: My Custom Title\n---\n# Welcome\n"
+        md = sub / "index.md"
+        md.write_text(original, encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        assert md.read_text(encoding="utf-8") == original
+
+    def test_number_prefix_stripped_from_folder(self, docs_dir):
+        sub = docs_dir / "01-Getting_Started"
+        sub.mkdir()
+        md = sub / "index.md"
+        md.write_text("# Intro\n", encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        result = md.read_text(encoding="utf-8")
+        assert result.startswith("---\ntitle: Getting Started\n---\n")

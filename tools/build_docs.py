@@ -119,6 +119,9 @@ def inject_titles(docs_dir: Path) -> None:
     * The root ``index.md`` (it may come from a README promotion).
     * Generated code pages produced by `generate_code_pages`.
 
+    For non-root ``index.md`` files the title is derived from the parent
+    folder name rather than the filename.
+
     If a file has no front matter at all, a new block is inserted.  If it
     has front matter but no ``title`` key, the key is added.  Files that
     already carry a ``title`` are left untouched.
@@ -132,7 +135,11 @@ def inject_titles(docs_dir: Path) -> None:
             continue
 
         text = md.read_text(encoding="utf-8", errors="replace")
-        title = _title_from_filename(md.name)
+        # Non-root index.md → derive title from parent folder name.
+        if md.name.lower() == "index.md":
+            title = _title_from_filename(md.parent.name + ".md")
+        else:
+            title = _title_from_filename(md.name)
 
         m = _FRONT_MATTER_RE.match(text)
         if m:
