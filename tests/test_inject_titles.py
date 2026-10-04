@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""Tests for front-matter title injection in build_docs.py."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import pytest
+from tools.build_docs import inject_titles, _title_from_filename
+
+
+@pytest.fixture()
+def docs_dir(tmp_path):
+    """Return a temporary docs directory for inject_titles."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    return d
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for _title_from_filename
+# ---------------------------------------------------------------------------
+
+class TestTitleFromFilename:
+    def test_simple(self):
+        assert _title_from_filename("My_Notes.md") == "My Notes"
+
+    def test_number_prefix_dash(self):
+        assert _title_from_filename("01-Getting_Started.md") == "Getting Started"
+
+    def test_number_prefix_underscore(self):
+        assert _title_from_filename("02_Setup.md") == "Setup"
+
+    def test_number_prefix_dot(self):
+        assert _title_from_filename("03.Advanced-Topics.md") == "Advanced Topics"
+
+    def test_preserves_capitalisation(self):
+        assert _title_from_filename("MyGreatPage.md") == "MyGreatPage"
+
+    def test_no_prefix(self):
+        assert _title_from_filename("hello-world.md") == "hello world"
+
+
+# ---------------------------------------------------------------------------
+# Integration tests for inject_titles
+# ---------------------------------------------------------------------------
+
+class TestNoFrontMatter:
+    """A .md file with no front matter at all gets a new block prepended."""
+
+    def test_title_inserted(self, docs_dir):
+        md = docs_dir / "My_Notes.md"
+        md.write_text("# Hello\n\nSome content.\n", encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        result = md.read_text(encoding="utf-8")
+        assert result.startswith("---\ntitle: My Notes\n---\n")
+        assert "# Hello" in result
+        assert "Some content." in result
+
+    def test_number_prefix_stripped(self, docs_dir):
+        md = docs_dir / "01-Getting_Started.md"
+        md.write_text("# Getting Started\n", encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        result = md.read_text(encoding="utf-8")
+        assert result.startswith("---\ntitle: Getting Started\n---\n")
+
+    def test_root_index_skipped(self, docs_dir):
+        """Root index.md must never be touched."""
+        original = "# Home\n"
+        md = docs_dir / "index.md"
+        md.write_text(original, encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        assert md.read_text(encoding="utf-8") == original
+
+    def test_original_notes_untouched(self, tmp_path):
+        """Source notes should never be modified – only docs copies."""
+        notes = tmp_path / "notes"
+        notes.mkdir()
+        original = "# Original\n"
+        src = notes / "page.md"
+        src.write_text(original, encoding="utf-8")
+
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        dst = docs / "page.md"
+        dst.write_text(original, encoding="utf-8")
+
+        inject_titles(docs)
+
+        # docs copy should be modified
+        assert dst.read_text(encoding="utf-8").startswith("---\ntitle:")
+        # source should be untouched
+        assert src.read_text(encoding="utf-8") == original
+
+
+class TestExistingFrontMatterWithoutTitle:
+    """Front matter exists but has no title key → title is added."""
+
+    def test_title_added(self, docs_dir):
+        md = docs_dir / "Design_Patterns.md"
+        md.write_text(
+            "---\ntags: [python, design]\n---\n# Design Patterns\n\nBody.\n",
+            encoding="utf-8",
+        )
+
+        inject_titles(docs_dir)
+
+        result = md.read_text(encoding="utf-8")
+        # Must contain both the original key and the new title
+        assert "tags: [python, design]" in result
+        assert "title: Design Patterns" in result
+        # Title should be inside the front-matter block
+        lines = result.split("\n")
+        # First line is ---, last of front matter is ---
+        assert lines[0] == "---"
+        fm_end = lines.index("---", 1)
+        fm_block = "\n".join(lines[1:fm_end])
+        assert "title: Design Patterns" in fm_block
+
+    def test_multiple_keys_preserved(self, docs_dir):
+        md = docs_dir / "Arch.md"
+        md.write_text(
+            "---\ndate: 2024-01-01\nauthor: Alice\n---\n# Arch\n",
+            encoding="utf-8",
+        )
+
+        inject_titles(docs_dir)
+
+        result = md.read_text(encoding="utf-8")
+        assert "date: 2024-01-01" in result
+        assert "author: Alice" in result
+        assert "title: Arch" in result
+
+
+class TestExistingTitle:
+    """Front matter already contains a title → file is left untouched."""
+
+    def test_not_modified(self, docs_dir):
+        original = "---\ntitle: Custom Title\n---\n# Heading\n\nBody.\n"
+        md = docs_dir / "My_Page.md"
+        md.write_text(original, encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        assert md.read_text(encoding="utf-8") == original
+
+    def test_title_with_other_keys(self, docs_dir):
+        original = (
+            "---\ntags: [web]\ntitle: Already Set\ndate: 2024-06-01\n---\n"
+            "# Content\n"
+        )
+        md = docs_dir / "Web_Dev.md"
+        md.write_text(original, encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        assert md.read_text(encoding="utf-8") == original
