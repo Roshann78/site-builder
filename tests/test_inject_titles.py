@@ -56,7 +56,7 @@ class TestNoFrontMatter:
         inject_titles(docs_dir)
 
         result = md.read_text(encoding="utf-8")
-        assert result.startswith("---\ntitle: My Notes\n---\n")
+        assert result.startswith("---\ntitle: \"My Notes\"\n---\n")
         assert "# Hello" in result
         assert "Some content." in result
 
@@ -67,7 +67,7 @@ class TestNoFrontMatter:
         inject_titles(docs_dir)
 
         result = md.read_text(encoding="utf-8")
-        assert result.startswith("---\ntitle: Getting Started\n---\n")
+        assert result.startswith("---\ntitle: \"Getting Started\"\n---\n")
 
     def test_root_index_skipped(self, docs_dir):
         """Root index.md must never be touched."""
@@ -115,14 +115,14 @@ class TestExistingFrontMatterWithoutTitle:
         result = md.read_text(encoding="utf-8")
         # Must contain both the original key and the new title
         assert "tags: [python, design]" in result
-        assert "title: Design Patterns" in result
+        assert "title: \"Design Patterns\"" in result
         # Title should be inside the front-matter block
         lines = result.split("\n")
         # First line is ---, last of front matter is ---
         assert lines[0] == "---"
         fm_end = lines.index("---", 1)
         fm_block = "\n".join(lines[1:fm_end])
-        assert "title: Design Patterns" in fm_block
+        assert "title: \"Design Patterns\"" in fm_block
 
     def test_multiple_keys_preserved(self, docs_dir):
         md = docs_dir / "Arch.md"
@@ -136,7 +136,7 @@ class TestExistingFrontMatterWithoutTitle:
         result = md.read_text(encoding="utf-8")
         assert "date: 2024-01-01" in result
         assert "author: Alice" in result
-        assert "title: Arch" in result
+        assert "title: \"Arch\"" in result
 
 
 class TestExistingTitle:
@@ -176,7 +176,7 @@ class TestSubfolderIndex:
         inject_titles(docs_dir)
 
         result = md.read_text(encoding="utf-8")
-        assert result.startswith("---\ntitle: PlacementNotes\n---\n")
+        assert result.startswith("---\ntitle: \"PlacementNotes\"\n---\n")
         assert "# Welcome" in result
 
     def test_existing_title_untouched(self, docs_dir):
@@ -199,4 +199,20 @@ class TestSubfolderIndex:
         inject_titles(docs_dir)
 
         result = md.read_text(encoding="utf-8")
-        assert result.startswith("---\ntitle: Getting Started\n---\n")
+        assert result.startswith("---\ntitle: \"Getting Started\"\n---\n")
+
+
+class TestTitleCharacters:
+    """Test that special characters in titles are safely quoted."""
+
+    def test_special_characters(self, docs_dir, monkeypatch):
+        import tools.build_docs
+        monkeypatch.setattr(tools.build_docs, "_title_from_filename", lambda x: "Symbols & : # [ ] \"quotes\"")
+        
+        md = docs_dir / "Symbols.md"
+        md.write_text("# Hello\n", encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        result = md.read_text(encoding="utf-8")
+        assert "title: \"Symbols & : # [ ] \\\"quotes\\\"\"" in result

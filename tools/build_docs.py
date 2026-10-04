@@ -2,6 +2,7 @@
 """Prepare a docs folder from a notes directory for MkDocs."""
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -141,6 +142,8 @@ def inject_titles(docs_dir: Path) -> None:
         else:
             title = _title_from_filename(md.name)
 
+        title_yaml = json.dumps(title)
+
         m = _FRONT_MATTER_RE.match(text)
         if m:
             # Front matter exists – check for an existing title.
@@ -149,10 +152,10 @@ def inject_titles(docs_dir: Path) -> None:
             # Insert the title line at the end of the existing block.
             fm_body = m.group(1)
             rest = text[m.end():]
-            new_text = f"---\n{fm_body}\ntitle: {title}\n---\n{rest}"
+            new_text = f"---\n{fm_body}\ntitle: {title_yaml}\n---\n{rest}"
         else:
             # No front matter – prepend a new block.
-            new_text = f"---\ntitle: {title}\n---\n{text}"
+            new_text = f"---\ntitle: {title_yaml}\n---\n{text}"
 
         md.write_text(new_text, encoding="utf-8")
 
@@ -185,6 +188,30 @@ def generate_code_pages(docs_dir: Path) -> None:
         fence = _fence(code)
         content = f"# {path.name}\n\n{fence}{lang}\n{code}\n{fence}\n"
         md_path.write_text(content, encoding="utf-8")
+
+
+_MD_PROTECT_RE = re.compile(
+    r"(?P<block>^[ \t]*(?P<fence>[~`]{3,})[ \t]*[^\n]*\n.*?(?:^[ \t]*(?P=fence)[ \t]*$|\Z))"
+    r"|(?P<inline>(?P<bt>`+)[^`]+?(?P=bt))"
+    r"|(?P<details><details\b(?![^>]*\bmarkdown\s*=)[^>]*>)",
+    re.MULTILINE | re.DOTALL | re.IGNORECASE
+)
+
+
+def process_details(docs_dir: Path) -> None:
+    """Add markdown='1' to <details> tags outside of code blocks."""
+    def repl(m: re.Match) -> str:
+        if m.group("details"):
+            return re.sub(r"(?i)^<details\b", '<details markdown="1"', m.group("details"), count=1)
+        return m.group(0)
+
+    for md in sorted(docs_dir.rglob("*.md")):
+        if _is_generated_code_page(md):
+            continue
+        text = md.read_text(encoding="utf-8", errors="replace")
+        new_text = _MD_PROTECT_RE.sub(repl, text)
+        if new_text != text:
+            md.write_text(new_text, encoding="utf-8")
 
 
 def ensure_index(notes_dir: Path, docs_dir: Path) -> set[str]:
@@ -251,6 +278,9 @@ def main() -> None:
 
     # 4. Inject page titles into copied Markdown files
     inject_titles(docs)
+
+    # Process details tags for markdown support
+    process_details(docs)
 
     # 5. Generate .md pages for source-code files
     generate_code_pages(docs)
