@@ -1,0 +1,53 @@
+/* ---------- Sidebar polish (site-builder) ---------- */
+@media screen and (min-width: 76.25em) {
+  .md-grid { max-width: 76rem; }
+  .md-sidebar--primary { width: 15.5rem; }
+}
+
+/* top-level folders = section headings */
+.md-nav--primary > .md-nav__list > .md-nav__item--section {
+  margin-top: 1.2rem;
+}
+.md-nav--primary > .md-nav__list > .md-nav__item--section:first-child {
+  margin-top: 0.4rem;
+}
+.md-nav--primary > .md-nav__list > .md-nav__item--section > .md-nav__link {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--md-accent-fg-color);
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.2rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+
+/* pages under a folder: guide line, indent, spacing */
+.md-nav--primary .md-nav__item--section > .md-nav > .md-nav__list {
+  border-left: 1px solid var(--md-default-fg-color--lightest);
+  margin-left: 0.15rem;
+}
+.md-nav--primary .md-nav__item--section > .md-nav .md-nav__link {
+  font-size: 0.7rem;
+  line-height: 1.4;
+  padding: 0.28rem 0.6rem;
+  margin-top: 0.1rem;
+  border-radius: 0 4px 4px 0;
+  transition: background-color 0.15s, color 0.15s;
+}
+.md-nav--primary .md-nav__item--section .md-nav__item--nested > .md-nav > .md-nav__list {
+  padding-left: 0.4rem;
+}
+
+/* hover and active states */
+.md-nav--primary .md-nav__item--section > .md-nav .md-nav__link:hover {
+  background: var(--md-accent-fg-color--transparent);
+}
+.md-nav--primary .md-nav__link--active {
+  font-weight: 600;
+  color: var(--md-accent-fg-color);
+}
+.md-nav--primary .md-nav__item--section > .md-nav .md-nav__link--active {
+  background: var(--md-accent-fg-color--transparent);
+  box-shadow: inset 2px 0 0 var(--md-accent-fg-color);
+}

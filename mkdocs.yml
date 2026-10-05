@@ -19,6 +19,9 @@ theme:
     - navigation.sections
     - search.suggest
     - content.code.copy
+    - navigation.path
+    - navigation.footer
+    - toc.follow
 
 markdown_extensions:
   - pymdownx.highlight
@@ -31,3 +34,6 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
+
+extra_css:
+  - stylesheets/sb-extra.css

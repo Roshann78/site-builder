@@ -292,6 +292,15 @@ def main() -> None:
     template = Path(__file__).resolve().parent.parent / "mkdocs.yml"
     shutil.copy2(template, out / "mkdocs.yml")
 
+    # 8. Copy sidebar CSS into docs/stylesheets/
+    css_src = Path(__file__).resolve().parent.parent / "assets" / "sb-extra.css"
+    if css_src.is_file():
+        css_dst = docs / "stylesheets"
+        css_dst.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(css_src, css_dst / "sb-extra.css")
+    else:
+        print(f"[WARN] sidebar CSS not found: {css_src}")
+
     print(f"[OK] docs prepared in {docs}  ({sum(1 for _ in docs.rglob('*') if _.is_file())} files)")
 
 
