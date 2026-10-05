@@ -23,23 +23,39 @@ def docs_dir(tmp_path):
 # ---------------------------------------------------------------------------
 
 class TestTitleFromFilename:
-    def test_simple(self):
+    # --- no-space names: underscores/hyphens become spaces ----------------
+    def test_underscores_replaced(self):
         assert _title_from_filename("My_Notes.md") == "My Notes"
 
-    def test_number_prefix_dash(self):
-        assert _title_from_filename("01-Getting_Started.md") == "Getting Started"
+    def test_hyphens_replaced(self):
+        assert _title_from_filename("hello-world.md") == "hello world"
 
-    def test_number_prefix_underscore(self):
-        assert _title_from_filename("02_Setup.md") == "Setup"
+    def test_number_prefix_kept_underscore(self):
+        """Leading number prefixes are preserved."""
+        assert _title_from_filename("01_Level_1_Core_OOP.md") == "01 Level 1 Core OOP"
 
-    def test_number_prefix_dot(self):
-        assert _title_from_filename("03.Advanced-Topics.md") == "Advanced Topics"
+    def test_event_driven_notes(self):
+        assert _title_from_filename("event-driven-notes.md") == "event driven notes"
 
     def test_preserves_capitalisation(self):
         assert _title_from_filename("MyGreatPage.md") == "MyGreatPage"
 
-    def test_no_prefix(self):
-        assert _title_from_filename("hello-world.md") == "hello world"
+    # --- names that already contain a space: used verbatim ----------------
+    def test_space_name_intro(self):
+        assert _title_from_filename(
+            "01 - Introduction, Servers, Deployment & Metrics.md"
+        ) == "01 - Introduction, Servers, Deployment & Metrics"
+
+    def test_space_name_monolithic(self):
+        assert _title_from_filename(
+            "04 - Monolithic vs Microservices Architecture.md"
+        ) == "04 - Monolithic vs Microservices Architecture"
+
+    def test_space_name_keeps_hyphens(self):
+        """Hyphens inside a name that contains spaces are preserved."""
+        assert _title_from_filename(
+            "02 - Scaling & Back-of-the-Envelope Estimation.md"
+        ) == "02 - Scaling & Back-of-the-Envelope Estimation"
 
 
 # ---------------------------------------------------------------------------
@@ -60,14 +76,15 @@ class TestNoFrontMatter:
         assert "# Hello" in result
         assert "Some content." in result
 
-    def test_number_prefix_stripped(self, docs_dir):
-        md = docs_dir / "01-Getting_Started.md"
-        md.write_text("# Getting Started\n", encoding="utf-8")
+    def test_number_prefix_kept(self, docs_dir):
+        """Number prefix is preserved in the generated title."""
+        md = docs_dir / "01_Level_1_Core_OOP.md"
+        md.write_text("# OOP Basics\n", encoding="utf-8")
 
         inject_titles(docs_dir)
 
         result = md.read_text(encoding="utf-8")
-        assert result.startswith("---\ntitle: \"Getting Started\"\n---\n")
+        assert result.startswith("---\ntitle: \"01 Level 1 Core OOP\"\n---\n")
 
     def test_root_index_skipped(self, docs_dir):
         """Root index.md must never be touched."""
@@ -115,14 +132,14 @@ class TestExistingFrontMatterWithoutTitle:
         result = md.read_text(encoding="utf-8")
         # Must contain both the original key and the new title
         assert "tags: [python, design]" in result
-        assert "title: \"Design Patterns\"" in result
+        assert 'title: "Design Patterns"' in result
         # Title should be inside the front-matter block
         lines = result.split("\n")
         # First line is ---, last of front matter is ---
         assert lines[0] == "---"
         fm_end = lines.index("---", 1)
         fm_block = "\n".join(lines[1:fm_end])
-        assert "title: \"Design Patterns\"" in fm_block
+        assert 'title: "Design Patterns"' in fm_block
 
     def test_multiple_keys_preserved(self, docs_dir):
         md = docs_dir / "Arch.md"
@@ -136,7 +153,7 @@ class TestExistingFrontMatterWithoutTitle:
         result = md.read_text(encoding="utf-8")
         assert "date: 2024-01-01" in result
         assert "author: Alice" in result
-        assert "title: \"Arch\"" in result
+        assert 'title: "Arch"' in result
 
 
 class TestExistingTitle:
@@ -163,6 +180,16 @@ class TestExistingTitle:
 
         assert md.read_text(encoding="utf-8") == original
 
+    def test_existing_front_matter_title_respected(self, docs_dir):
+        """Files with an explicit title in front matter must never be overwritten."""
+        original = '---\ntitle: "My Custom Title"\n---\n# Whatever\n'
+        md = docs_dir / "01_Level_1_Core_OOP.md"
+        md.write_text(original, encoding="utf-8")
+
+        inject_titles(docs_dir)
+
+        assert md.read_text(encoding="utf-8") == original
+
 
 class TestSubfolderIndex:
     """Non-root index.md derives title from parent folder name."""
@@ -176,7 +203,7 @@ class TestSubfolderIndex:
         inject_titles(docs_dir)
 
         result = md.read_text(encoding="utf-8")
-        assert result.startswith("---\ntitle: \"PlacementNotes\"\n---\n")
+        assert result.startswith('---\ntitle: "PlacementNotes"\n---\n')
         assert "# Welcome" in result
 
     def test_existing_title_untouched(self, docs_dir):
@@ -190,7 +217,8 @@ class TestSubfolderIndex:
 
         assert md.read_text(encoding="utf-8") == original
 
-    def test_number_prefix_stripped_from_folder(self, docs_dir):
+    def test_number_prefix_kept_in_folder(self, docs_dir):
+        """Folder name number prefix is preserved in the derived title."""
         sub = docs_dir / "01-Getting_Started"
         sub.mkdir()
         md = sub / "index.md"
@@ -199,7 +227,7 @@ class TestSubfolderIndex:
         inject_titles(docs_dir)
 
         result = md.read_text(encoding="utf-8")
-        assert result.startswith("---\ntitle: \"Getting Started\"\n---\n")
+        assert result.startswith('---\ntitle: "01 Getting Started"\n---\n')
 
 
 class TestTitleCharacters:

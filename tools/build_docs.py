@@ -23,11 +23,6 @@ LANG_MAP = {
     ".go": "go",
 }
 
-# Regex matching an optional leading number prefix: one or more digits
-# followed by a separator (-, _, ., or whitespace).  Used to derive a
-# human-friendly page title from a filename.
-_NUMBER_PREFIX_RE = re.compile(r"^\d+[-_.\s]+")
-
 # Regex to detect existing YAML front matter (--- … ---).
 _FRONT_MATTER_RE = re.compile(
     r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n",
@@ -79,14 +74,17 @@ def _title_from_filename(name: str) -> str:
     """Derive a page title from a Markdown filename.
 
     1. Drop the ``.md`` extension.
-    2. Strip a leading number prefix (digits followed by ``-``, ``_``,
-       ``.``, or whitespace).
-    3. Replace underscores and hyphens with spaces.
-    4. Keep original capitalisation.
+    2. Keep any leading number prefix (do **not** strip it).
+    3. If the remaining name contains at least one space, use it
+       exactly as written (hyphens and underscores are preserved).
+    4. Otherwise replace every underscore and hyphen with a single
+       space and collapse repeated spaces.
+    5. Keep original capitalisation.
     """
     stem = Path(name).stem
-    stem = _NUMBER_PREFIX_RE.sub("", stem)
-    return stem.replace("_", " ").replace("-", " ")
+    if " " in stem:
+        return stem
+    return re.sub(r" {2,}", " ", stem.replace("_", " ").replace("-", " "))
 
 
 def _has_title(front_matter_body: str) -> bool:
