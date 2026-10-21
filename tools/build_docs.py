@@ -299,6 +299,17 @@ def main() -> None:
     else:
         print(f"[WARN] sidebar CSS not found: {css_src}")
 
+    # 9. Copy MathJax JS into docs/javascripts/
+    js_src = Path(__file__).resolve().parent.parent / "assets" / "sb-mathjax.js"
+    if js_src.is_file():
+        js_dst = docs / "javascripts"
+        js_target = js_dst / "sb-mathjax.js"
+        if not js_target.exists():
+            js_dst.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(js_src, js_target)
+    else:
+        print(f"[WARN] MathJax JS not found: {js_src}")
+
     print(f"[OK] docs prepared in {docs}  ({sum(1 for _ in docs.rglob('*') if _.is_file())} files)")
 
 
